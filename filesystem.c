@@ -1,124 +1,105 @@
 #include "filesystem.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-// Global variables
-FILE *fs;
-DirectoryEntry directory[DIRECTORY_SIZE];
-int current_directory_size = 0;
+void initialize_file_system() {
+    struct stat st = {0};
 
-void create_file_system() {
-    fs = fopen(FILE_SYSTEM_NAME, "rb+");
-    if (fs == NULL) {
-        fs = fopen(FILE_SYSTEM_NAME, "wb+");
-        if (fs == NULL) {
-            printf("Failed to create file system.\n");
+    // Check if the directory exists, if not create it
+    if (stat(FILE_SYSTEM_DIR, &st) == -1) {
+        if (mkdir(FILE_SYSTEM_DIR, 0700) == 0) {
+            printf("Initialized virtual file system in directory '%s'.\n", FILE_SYSTEM_DIR);
+        } else {
+            perror("Error initializing file system");
             exit(1);
         }
-        // Initialize the file system (directory block)
-        fseek(fs, 0, SEEK_SET);
-        fwrite(directory, sizeof(DirectoryEntry), DIRECTORY_SIZE, fs);
     }
 }
 
-int allocate_blocks(int size) {
-    int blocks_needed = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    // Allocate blocks by finding empty blocks
-    return blocks_needed;
-}
+void create_file(const char* name, const char* content) {
+    char path[MAX_FILE_NAME_SIZE + sizeof(FILE_SYSTEM_DIR) + 2];
+    snprintf(path, sizeof(path), "%s/%s", FILE_SYSTEM_DIR, name);
 
-void free_blocks(int start_block) {
-    // Free blocks (this can be expanded to actually mark blocks as free)
-}
-
-void create_file(const char *name, const char *content) {
-    if (current_directory_size >= DIRECTORY_SIZE) {
-        printf("Directory is full.\n");
+    FILE* file = fopen(path, "w");
+    if (!file) {
+        perror("Error creating file");
         return;
     }
 
-    DirectoryEntry entry;
-    strncpy(entry.name, name, MAX_FILE_NAME_SIZE);
-    entry.size = strlen(content);
-    entry.start_block = allocate_blocks(entry.size);
-    entry.is_directory = 0;
-
-    directory[current_directory_size++] = entry;
-
-    // Write content to the file system (after the directory block)
-    fseek(fs, entry.start_block * BLOCK_SIZE, SEEK_SET);
-    fwrite(content, sizeof(char), entry.size, fs);
-
-    // Update the directory in the file system
-    fseek(fs, 0, SEEK_SET);
-    fwrite(directory, sizeof(DirectoryEntry), DIRECTORY_SIZE, fs);
-
-    printf("File created successfully: %s\n", name);
+    fprintf(file, "%s", content);
+    fclose(file);
+    printf("File '%s' created successfully.\n", name);
 }
 
-void read_file(const char *name) {
-    for (int i = 0; i < current_directory_size; i++) {
-        if (strcmp(directory[i].name, name) == 0) {
-            char *content = (char *)malloc(directory[i].size);
-            fseek(fs, directory[i].start_block * BLOCK_SIZE, SEEK_SET);
-            fread(content, sizeof(char), directory[i].size, fs);
-            printf("File content: %s\n", content);
-            free(content);
-            return;
-        }
+void read_file(const char* name) {
+    char path[MAX_FILE_NAME_SIZE + sizeof(FILE_SYSTEM_DIR) + 2];
+    snprintf(path, sizeof(path), "%s/%s", FILE_SYSTEM_DIR, name);
+
+    FILE* file = fopen(path, "r");
+    if (!file) {
+        printf("Error: File '%s' not found.\n", name);
+        return;
     }
-    printf("File not found.\n");
+
+    char buffer[MAX_FILE_SIZE];
+    size_t bytes_read = fread(buffer, 1, sizeof(buffer) - 1, file);
+    buffer[bytes_read] = '\0';
+
+    printf("Content of '%s':\n%s\n", name, buffer);
+    fclose(file);
 }
 
-void write_file(const char *name, const char *content) {
-    for (int i = 0; i < current_directory_size; i++) {
-        if (strcmp(directory[i].name, name) == 0) {
-            directory[i].size = strlen(content);
-            fseek(fs, directory[i].start_block * BLOCK_SIZE, SEEK_SET);
-            fwrite(content, sizeof(char), directory[i].size, fs);
-            printf("File written successfully: %s\n", name);
-            return;
-        }
+void write_file(const char* name, const char* content) {
+    char path[MAX_FILE_NAME_SIZE + sizeof(FILE_SYSTEM_DIR) + 2];
+    snprintf(path, sizeof(path), "%s/%s", FILE_SYSTEM_DIR, name);
+
+    FILE* file = fopen(path, "w");
+    if (!file) {
+        printf("Error: File '%s' not found.\n", name);
+        return;
     }
-    printf("File not found.\n");
+
+    fprintf(file, "%s", content);
+    fclose(file);
+    printf("File '%s' updated successfully.\n", name);
 }
 
-void truncate_file(const char *name) {
-    for (int i = 0; i < current_directory_size; i++) {
-        if (strcmp(directory[i].name, name) == 0) {
-            directory[i].size = 0;
-            fseek(fs, directory[i].start_block * BLOCK_SIZE, SEEK_SET);
-            fwrite("", sizeof(char), 0, fs);
-            printf("File truncated: %s\n", name);
-            return;
-        }
-    }
-    printf("File not found.\n");
-}
+void delete_file(const char* name) {
+    char path[MAX_FILE_NAME_SIZE + sizeof(FILE_SYSTEM_DIR) + 2];
+    snprintf(path, sizeof(path), "%s/%s", FILE_SYSTEM_DIR, name);
 
-void delete_file(const char *name) {
-    for (int i = 0; i < current_directory_size; i++) {
-        if (strcmp(directory[i].name, name) == 0) {
-            // Free blocks and remove from directory
-            free_blocks(directory[i].start_block);
-            for (int j = i; j < current_directory_size - 1; j++) {
-                directory[j] = directory[j + 1];
-            }
-            current_directory_size--;
-            // Update the directory in the file system
-            fseek(fs, 0, SEEK_SET);
-            fwrite(directory, sizeof(DirectoryEntry), DIRECTORY_SIZE, fs);
-            printf("File deleted: %s\n", name);
-            return;
-        }
+    if (remove(path) == 0) {
+        printf("File '%s' deleted successfully.\n", name);
+    } else {
+        printf("Error: File '%s' not found.\n", name);
     }
-    printf("File not found.\n");
 }
 
 void list_files() {
-    if (current_directory_size == 0) {
-        printf("No files in the directory.\n");
+    DIR* dir = opendir(FILE_SYSTEM_DIR);
+    if (!dir) {
+        perror("Error opening file system directory");
         return;
     }
-    for (int i = 0; i < current_directory_size; i++) {
-        printf("File: %s, Size: %d bytes\n", directory[i].name, directory[i].size);
+
+    printf("\n--- Files in '%s' ---\n", FILE_SYSTEM_DIR);
+    struct dirent* entry;
+    char path[MAX_FILE_NAME_SIZE + sizeof(FILE_SYSTEM_DIR) + 2];
+    struct stat file_stat;
+
+    while ((entry = readdir(dir)) != NULL) {
+        snprintf(path, sizeof(path), "%s/%s", FILE_SYSTEM_DIR, entry->d_name);
+
+        // Use stat to check if it's a regular file
+        if (stat(path, &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
+            printf("%s\n", entry->d_name);
+        }
     }
+
+    closedir(dir);
 }
+
