@@ -7,10 +7,13 @@ void menu() {
     printf("\n--- File System Menu ---\n");
     printf("1. Create File\n");
     printf("2. Read File\n");
-    printf("3. Write File\n");
+    printf("3. Write to File\n");
     printf("4. Delete File\n");
-    printf("5. List Files\n");
-    printf("6. Exit\n");
+    printf("5. Truncate File\n");
+    printf("6. List Files\n");
+    printf("7. Create Directory\n");
+    printf("8. Delete Directory\n");
+    printf("9. Exit\n");
     printf("Enter your choice: ");
 }
 
@@ -19,58 +22,84 @@ int main() {
 
     int choice;
     char name[MAX_FILE_NAME_SIZE];
-    char content[MAX_FILE_SIZE];
+    char content[BLOCK_SIZE];
+    int new_size;
 
     while (1) {
         menu();
         scanf("%d", &choice);
-        getchar(); // Consume newline character
+        getchar();
 
         switch (choice) {
-            case 1: // Create File
+            case 1:
                 printf("Enter file name: ");
                 fgets(name, sizeof(name), stdin);
-                name[strcspn(name, "\n")] = '\0'; // Remove newline
+                name[strcspn(name, "\n")] = '\0';
                 printf("Enter file content: ");
                 fgets(content, sizeof(content), stdin);
-                content[strcspn(content, "\n")] = '\0'; // Remove newline
+                content[strcspn(content, "\n")] = '\0';
                 create_file(name, content);
                 break;
 
-            case 2: // Read File
+            case 2:
                 printf("Enter file name: ");
                 fgets(name, sizeof(name), stdin);
                 name[strcspn(name, "\n")] = '\0';
                 read_file(name);
                 break;
 
-            case 3: // Write File
+            case 3:
                 printf("Enter file name: ");
                 fgets(name, sizeof(name), stdin);
                 name[strcspn(name, "\n")] = '\0';
-                printf("Enter new content: ");
+                printf("Enter content to append: ");
                 fgets(content, sizeof(content), stdin);
                 content[strcspn(content, "\n")] = '\0';
                 write_file(name, content);
                 break;
 
-            case 4: // Delete File
+            case 4:
                 printf("Enter file name: ");
                 fgets(name, sizeof(name), stdin);
                 name[strcspn(name, "\n")] = '\0';
                 delete_file(name);
                 break;
 
-            case 5: // List Files
+            case 5:
+                printf("Enter file name: ");
+                fgets(name, sizeof(name), stdin);
+                name[strcspn(name, "\n")] = '\0';
+                printf("Enter new size (in bytes): ");
+                scanf("%d", &new_size);
+                getchar();
+                truncate_file(name, new_size);
+                break;
+
+            case 6:
                 list_files();
                 break;
 
-            case 6: // Exit
+            case 7:
+                printf("Enter directory name: ");
+                fgets(name, sizeof(name), stdin);
+                name[strcspn(name, "\n")] = '\0';
+                create_directory(name);
+                break;
+
+            case 8:
+                printf("Enter directory name: ");
+                fgets(name, sizeof(name), stdin);
+                name[strcspn(name, "\n")] = '\0';
+                delete_directory(name);
+                break;
+
+            case 9:
                 printf("Exiting...\n");
-                return 0;
+                exit(0);
 
             default:
-                printf("Invalid choice. Please try again.\n");
+                printf("Invalid choice. Try again.\n");
+                break;
         }
     }
 
